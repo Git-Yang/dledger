@@ -196,7 +196,9 @@ public class DLedgerServer implements DLedgerProtocolHander {
                 } else {
                     DLedgerEntry dLedgerEntry = new DLedgerEntry();
                     dLedgerEntry.setBody(request.getBody());
+                    long startTimeAppendAsLeader = System.nanoTime();
                     DLedgerEntry resEntry = dLedgerStore.appendAsLeader(dLedgerEntry);
+                    TestStats.put(TestStats.IndexEnum.APPEND_AS_LEADER, startTimeAppendAsLeader, System.nanoTime());
                     return dLedgerEntryPusher.waitAck(resEntry, false);
                 }
             }

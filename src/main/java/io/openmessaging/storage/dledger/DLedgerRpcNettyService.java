@@ -351,11 +351,13 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
                 break;
             }
             case PUSH: {
+                long startTimePush = System.nanoTime();
                 PushEntryRequest pushEntryRequest = JSON.parseObject(request.getBody(), PushEntryRequest.class);
                 CompletableFuture<PushEntryResponse> future = handlePush(pushEntryRequest);
                 future.whenCompleteAsync((x, y) -> {
                     writeResponse(x, y, request, ctx);
                 }, futureExecutor);
+                TestStats.put(TestStats.IndexEnum.HANDLE_PUSH, startTimePush, System.nanoTime());
                 break;
             }
             case VOTE: {

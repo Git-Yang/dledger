@@ -183,6 +183,7 @@ public class DLedgerEntryPusher {
         private long lastPrintWatermarkTimeMs = System.currentTimeMillis();
         private long lastCheckLeakTimeMs = System.currentTimeMillis();
         private long lastQuorumIndex = -1;
+        private long lastTime = System.nanoTime();
 
         public QuorumAckChecker(Logger logger) {
             super("QuorumAckChecker-" + memberState.getSelfId(), logger);
@@ -191,6 +192,7 @@ public class DLedgerEntryPusher {
         @Override
         public void doWork() {
             try {
+                long startNum = lastQuorumIndex;
                 if (DLedgerUtils.elapsed(lastPrintWatermarkTimeMs) > 3000) {
                     logger.info("[{}][{}] term={} ledgerBegin={} ledgerEnd={} committed={} watermarks={}",
                         memberState.getSelfId(), memberState.getRole(), memberState.currTerm(), dLedgerStore.getLedgerBeginIndex(), dLedgerStore.getLedgerEndIndex(), dLedgerStore.getCommittedIndex(), JSON.toJSONString(peerWaterMarksByTerm));
@@ -298,6 +300,13 @@ public class DLedgerEntryPusher {
                     lastCheckLeakTimeMs = System.currentTimeMillis();
                 }
                 lastQuorumIndex = quorumIndex;
+                long num = lastQuorumIndex - startNum;
+                long currentTime = System.nanoTime();
+                if (num > 0) {
+                    long costTime = (currentTime - lastTime) / num;
+                    TestStats.put(TestStats.IndexEnum.QUORUM_ACK_CHECKER, lastTime, lastTime + costTime);
+                }
+                lastTime = currentTime;
             } catch (Throwable t) {
                 DLedgerEntryPusher.logger.error("Error in {}", getName(), t);
                 DLedgerUtils.sleep(100);
@@ -496,7 +505,9 @@ public class DLedgerEntryPusher {
                     doCheckAppendResponse();
                     break;
                 }
+                long startTime = System.nanoTime();
                 doAppendInner(writeIndex);
+                TestStats.put(TestStats.IndexEnum.DO_APEND_INNER, startTime, System.nanoTime());
                 writeIndex++;
             }
         }
@@ -586,7 +597,9 @@ public class DLedgerEntryPusher {
                     doCheckBatchAppendResponse();
                     break;
                 }
+                long startTime = System.nanoTime();
                 doBatchAppendInner(writeIndex);
+                TestStats.put(TestStats.IndexEnum.DO_BATCH_APEND_INNER, startTime, System.nanoTime());
                 writeIndex++;
             }
         }
@@ -997,7 +1010,9 @@ public class DLedgerEntryPusher {
                     if (request.isBatch()) {
                         handleDoBatchAppend(nextIndex, request, pair.getValue());
                     } else {
+                        long startTimeDoAppend = System.nanoTime();
                         handleDoAppend(nextIndex, request, pair.getValue());
+                        TestStats.put(TestStats.IndexEnum.HANDLE_DO_APPEND, startTimeDoAppend, System.nanoTime());
                     }
                 }
             } catch (Throwable t) {
